@@ -3,16 +3,14 @@ require 'matrix'
 require_relative 'extensions'
 require_relative 'quadrangle'
 require_relative 'cube'
+require_relative 'gtk_helper'
 
 class MyDrawingArea < Gtk::DrawingArea
   attr_reader :cube
   attr_reader :rotation_matrix
 
   type_register
-  signal_new('changed',
-             GLib::Signal::ACTION,
-             nil,			# accumulator
-             GLib::Type['void'])	# return type
+  stock_signal_new('changed')
 
   WIDTH = 700
   HEIGHT = 350
@@ -23,8 +21,14 @@ class MyDrawingArea < Gtk::DrawingArea
     set_size_request WIDTH, HEIGHT
 
     signal_connect('expose-event', &method(:on_expose))
+
     @cube = Cube.new
     @cube.signal_connect('changed') do
+      invalidate
+    end
+
+    @tetrahedron = Tetrahedron.new
+    @tetrahedron.signal_connect('changed') do
       invalidate
     end
 
@@ -99,6 +103,15 @@ class MyDrawingArea < Gtk::DrawingArea
 
   VIEW_POINT = Vector[0, 0, -800]
 
+  def draw_tetrahedron(cr)
+    cr.save do
+      @tetrahedron.each_side do |side|
+        triangle = Triangle.new(*side.vertices.map { |v| perspective rotate v })
+        draw_surface(cr, triangle)
+      end
+    end
+  end
+
   def draw_cube(cr)
     cr.save do
       @cube.each_side do |side|
@@ -139,18 +152,24 @@ class MyDrawingArea < Gtk::DrawingArea
     if quad.normal[2] < 0
     else
       cr.set_source_color([0.8, 0.3, 0.3, 0.8])
-      cr.move_to(*to_2d(quad.vertices[0]))
-      cr.line_to(*to_2d(quad.vertices[1]))
-      cr.line_to(*to_2d(quad.vertices[2]))
-      cr.line_to(*to_2d(quad.vertices[3]))
+      quad.vertices.each_with_index do |vertex, i|
+        if i==0
+          cr.move_to(*to_2d(vertex))
+        else
+          cr.line_to(*to_2d(vertex))
+        end
+      end
       cr.line_to(*to_2d(quad.vertices[0]))
       cr.fill
 
       cr.set_source_color([0.1, 0.1, 0.1])
-      cr.move_to(*to_2d(quad.vertices[0]))
-      cr.line_to(*to_2d(quad.vertices[1]))
-      cr.line_to(*to_2d(quad.vertices[2]))
-      cr.line_to(*to_2d(quad.vertices[3]))
+      quad.vertices.each_with_index do |vertex, i|
+        if i==0
+          cr.move_to(*to_2d(vertex))
+        else
+          cr.line_to(*to_2d(vertex))
+        end
+      end
       cr.line_to(*to_2d(quad.vertices[0]))
       cr.stroke
     end
@@ -162,6 +181,7 @@ class MyDrawingArea < Gtk::DrawingArea
 
     draw_axes(cr) if show_axes?
     draw_cube(cr)
+    draw_tetrahedron(cr)
 
     cr.destroy
   end

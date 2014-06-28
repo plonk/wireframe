@@ -72,8 +72,8 @@ class MainWindow < Gtk::Window
         ].each do |item|
           vbox.pack_start Label.new item[:label]
           button = create(SpinButton, *item[:args],
-                          value: item[:value])
-          button.set(on_value_changed: proc { item[:proc].call(button) })
+                          value: item[:value],
+                          on_value_changed: proc { item[:proc].call(button) })
           vbox.pack_start(button)
         end
 
@@ -118,18 +118,18 @@ class MainWindow < Gtk::Window
         end
 
         axis_check_button = create(CheckButton, 'Show Axes',
-                                   active: @drawing_area.show_axes?)
-        axis_check_button.set(on_toggled: proc {
-                                @drawing_area.show_axes = !@drawing_area.show_axes?
-                                @drawing_area2.show_axes = !@drawing_area2.show_axes?
-                              })
+                                   active: @drawing_area.show_axes?,
+                                   on_toggled: proc {
+                                     @drawing_area.show_axes = !@drawing_area.show_axes?
+                                     @drawing_area2.show_axes = !@drawing_area2.show_axes?
+                                   })
         vbox.pack_start(axis_check_button)
         wire_check_button = create(CheckButton, 'Wireframe',
-                                   active: @drawing_area.wireframe?)
-        wire_check_button.set(on_toggled: proc {
-                                @drawing_area.wireframe = !@drawing_area.wireframe?
-                                @drawing_area2.wireframe = !@drawing_area2.wireframe?
-                              })
+                                   active: @drawing_area.wireframe?,
+                                   on_toggled: proc {
+                                     @drawing_area.wireframe = !@drawing_area.wireframe?
+                                     @drawing_area2.wireframe = !@drawing_area2.wireframe?
+                                   })
 
         vbox.pack_start(wire_check_button)
         align.add vbox

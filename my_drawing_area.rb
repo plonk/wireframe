@@ -1,58 +1,12 @@
 # -*- coding: utf-8 -*-
 require 'matrix'
-
-class Cube < GLib::Object
-  attr_reader :offset
-
-  type_register
-  signal_new('changed',
-             GLib::Signal::ACTION,
-             nil,			# accumulator
-             GLib::Type['void'])	# return type
-
-  def initialize
-    super()
-    self.offset = Vector[150,0,0]
-  end
-
-  def offset=(new_offset)
-    @offset = new_offset
-    @sides = recalc_sides
-    signal_emit('changed')
-  end
-
-  def recalc_sides
-    [[0, 0, 0], [1, 0, 0],
-     [1, 0, 0], [1, 0, 1],
-     [1, 0, 1], [0, 0, 1],
-     [0, 0, 1], [0, 0, 0],
-
-     # 底面のバッテン
-     # [0, 0, 0], [1, 0, 1],
-     # [1, 0, 0], [0, 0, 1],
-
-     [0, 1, 0], [1, 1, 0],
-     [1, 1, 0], [1, 1, 1],
-     [1, 1, 1], [0, 1, 1],
-     [0, 1, 1], [0, 1, 0],
-
-     [0, 0, 0], [0, 1, 0],
-     [1, 0, 0], [1, 1, 0],
-     [1, 0, 1], [1, 1, 1],
-     [0, 0, 1], [0, 1, 1],].each_slice(2).map do |st, ed|
-      [Vector[*st] * 100 + @offset, Vector[*ed] * 100 + @offset]
-    end
-  end
-
-  def each_line
-    @sides.each do |line|
-      yield(line)
-    end
-  end
-end
+require_relative 'extensions'
+require_relative 'quadrangle'
+require_relative 'cube'
 
 class MyDrawingArea < Gtk::DrawingArea
-  attr_reader :cube, :x_deg, :y_deg, :z_deg
+  attr_reader :cube
+  attr_reader :rotation_matrix
 
   type_register
   signal_new('changed',
@@ -74,27 +28,36 @@ class MyDrawingArea < Gtk::DrawingArea
       invalidate
     end
 
-    @x_deg = 29.5
-    @y_deg = -29.5
-    @z_deg = 0.0
+    @wireframe = true
+    @show_axes = true
+
+    @rotation_matrix = Matrix[[1,0,0],[0,1,0],[0,0,1]]
 
     signal_connect('changed') do
       invalidate
     end
   end
 
-  def x_deg=(value)
-    @x_deg = value
+  def wireframe?
+    @wireframe
+  end
+
+  def wireframe=(bool)
+    @wireframe = bool
     signal_emit('changed')
   end
 
-  def y_deg=(value)
-    @y_deg = value
+  def show_axes?
+    @show_axes
+  end
+
+  def show_axes=(bool)
+    @show_axes = bool
     signal_emit('changed')
   end
 
-  def z_deg=(value)
-    @z_deg = value
+  def rotation_matrix=(matrix)
+    @rotation_matrix = matrix
     signal_emit('changed')
   end
 
@@ -122,26 +85,74 @@ class MyDrawingArea < Gtk::DrawingArea
     cr.save do
       [X_AXIS, Y_AXIS, Z_AXIS].zip([?X,?Y,?Z]).each do |tip, letter|
         cr.set_source_color [0.1,0.1,0.1]
-        cr.move_to(*project2(ORIGIN))
-        cr.line_to(*project2(tip))
+        cr.move_to(*project(ORIGIN))
+        cr.line_to(*project(tip))
         cr.stroke
 
         cr.set_source_color [0.3,0.5,0.5]
         cr.set_font_size(20)
-        cr.move_to(*project2(tip) + Vector[20, 20])
+        cr.move_to(*project(tip) + Vector[20, 20])
         cr.show_text(letter)
       end
     end
   end
 
+  VIEW_POINT = Vector[0, 0, -800]
+
   def draw_cube(cr)
     cr.save do
-      @cube.each_line do |st, ed|
-        cr.set_source_color(BLUE)
-        cr.move_to(*project2(st))
-        cr.line_to(*project2(ed))
-        cr.stroke
+      @cube.each_side do |side|
+        quad = Quadrangle.new(*side.vertices.map { |v| perspective rotate v })
+
+        draw_surface(cr, quad)
       end
+    end
+  end
+
+  def draw_surface cr, quad
+    if wireframe?
+      draw_surface_wireframe(cr, quad)
+    else
+      draw_surface_fill(cr, quad)
+    end
+  end
+
+  def draw_surface_wireframe cr, quad
+    if quad.normal[2] < 0
+      cr.set_line_width(1)
+      cr.set_source_color(RED)
+      cr.set_dash([2, 5])
+    else
+      cr.set_line_width(3)
+      cr.set_source_color(BLUE)
+      cr.set_dash([])
+    end
+
+    quad.each_line do |st, ed|
+      cr.move_to(*to_2d(st))
+      cr.line_to(*to_2d(ed))
+      cr.stroke
+    end
+  end
+
+  def draw_surface_fill cr, quad
+    if quad.normal[2] < 0
+    else
+      cr.set_source_color([0.8, 0.3, 0.3, 0.8])
+      cr.move_to(*to_2d(quad.vertices[0]))
+      cr.line_to(*to_2d(quad.vertices[1]))
+      cr.line_to(*to_2d(quad.vertices[2]))
+      cr.line_to(*to_2d(quad.vertices[3]))
+      cr.line_to(*to_2d(quad.vertices[0]))
+      cr.fill
+
+      cr.set_source_color([0.1, 0.1, 0.1])
+      cr.move_to(*to_2d(quad.vertices[0]))
+      cr.line_to(*to_2d(quad.vertices[1]))
+      cr.line_to(*to_2d(quad.vertices[2]))
+      cr.line_to(*to_2d(quad.vertices[3]))
+      cr.line_to(*to_2d(quad.vertices[0]))
+      cr.stroke
     end
   end
 
@@ -149,7 +160,7 @@ class MyDrawingArea < Gtk::DrawingArea
     cr.scale(1, 1)
     cr.set_line_width(1)
 
-    draw_axes(cr)
+    draw_axes(cr) if show_axes?
     draw_cube(cr)
 
     cr.destroy
@@ -157,62 +168,27 @@ class MyDrawingArea < Gtk::DrawingArea
 
   include Math
 
-  def project2(vector)
-    # # x_deg = 180 / 180 * Math::PI
-    # y_deg = 0
-    rotated = vector.z_rotate(to_rad(@z_deg)).y_rotate(to_rad(@y_deg)).x_rotate(to_rad(@x_deg))
-    _project(rotated) + Vector[WIDTH/2, HEIGHT/2]
+  def rotate(vector)
+    @rotation_matrix * vector
   end
 
-  # 3D -> 2D
-  def _project(vector)
-    # result = Matrix[[1,0,0],[0,1,0]] * vector
-    # result *= ((vector[2] - 2000) / 2000)
-    # result = Matrix[[1,0,0],[0,1,0]] * vector
-    # t = vector[2] * 0.5 / Math.sqrt(2)
-    # Vector[result[0] - t, result[1] + t]
-
-    # Matrix[[1,0,0],[0,1,0]] * vector
-
+  def perspective(vector)
     x, y, z = vector[0], vector[1], vector[2]
 
-    Vector[x / (800 - z) * 500 * 1.3, y / (800 - z) * 500 * 1.3]
+    Vector[x.fdiv(800 - z) * 500 * 1.3, y.fdiv(800 - z) * 500 * 1.3, z] 
+  end
+  # 3D -> 2D
+
+  def to_2d vector
+    Vector[vector[0],vector[1]] + Vector[WIDTH/2, HEIGHT/2]
+  end
+
+  def project vector
+    to_2d perspective rotate vector
   end
 
   def invalidate
     window.invalidate(window.clip_region, true)
     window.process_updates(true)
-  end
-end
-
-class Vector
-  include Math
-
-  def x_rotate(theta)
-    Matrix[[1,          0,           0],
-           [0, cos(theta), -sin(theta)],
-           [0, sin(theta),  cos(theta)]] * self
-  end
-
-  def y_rotate(theta)
-    Matrix[[cos(theta),  0, sin(theta)],
-           [0,           1,          0],
-           [-sin(theta), 0, cos(theta)]] * self
-  end
-
-  def z_rotate(theta)
-    Matrix[[cos(theta), -sin(theta),  0],
-           [sin(theta),  cos(theta),  0],
-           [0,                    0,  1]] * self
-  end
-end
-
-class ParallelProjectingDrawingArea < MyDrawingArea
-  def initialize
-    super
-  end
-
-  def _project(vector)
-    Matrix[[1,0,0],[0,1,0]] * vector
   end
 end

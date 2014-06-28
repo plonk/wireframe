@@ -2,6 +2,7 @@
 require 'gtk2'
 require_relative 'gtk_helper'
 require_relative 'my_drawing_area'
+require_relative 'parallel'
 
 class MainWindow < Gtk::Window
   include Gtk
@@ -11,6 +12,7 @@ class MainWindow < Gtk::Window
     super()
     # set_default_size 700,700
     build
+    set_border_width(10)
 
     signal_connect('destroy') do
       Gtk.main_quit
@@ -18,13 +20,17 @@ class MainWindow < Gtk::Window
   end
 
   def build
-    create(HBox) do |hbox|
+    create(HBox, spacing: 10) do |hbox|
       create(VBox) do |vbox|
+        frame = Frame.new("透視投影")
         @drawing_area = create(MyDrawingArea)
-        vbox.pack_start(@drawing_area)
+        frame.add @drawing_area
+        vbox.pack_start(frame)
 
+        frame2 = Frame.new("平行投影")
         @drawing_area2 = create(ParallelProjectingDrawingArea)
-        vbox.pack_start(@drawing_area2)
+        frame2.add @drawing_area2
+        vbox.pack_start(frame2)
 
         hbox.pack_start(vbox)
       end
@@ -63,27 +69,6 @@ class MainWindow < Gtk::Window
               @drawing_area.cube.offset = Vector[v[0], v[1], spin.value]
               @drawing_area2.cube.offset = Vector[v[0], v[1], spin.value]
             end },
-          { label: 'X Rotate',
-            args: [-180, 180, 0.5],
-            value: @drawing_area.x_deg,
-            proc: proc do |spin|
-              @drawing_area.x_deg = spin.value
-              @drawing_area2.x_deg = spin.value
-            end },
-          { label: 'Y Rotate',
-            args: [-180, 180, 0.5],
-            value: @drawing_area.y_deg,
-            proc: proc do |spin|
-              @drawing_area.y_deg = spin.value
-              @drawing_area2.y_deg = spin.value
-            end },
-          { label: 'Z Rotate',
-            args: [-180, 180, 0.5],
-            value: @drawing_area.z_deg,
-            proc: proc do |spin|
-              @drawing_area.z_deg = spin.value
-              @drawing_area2.z_deg = spin.value
-            end },
         ].each do |item|
           vbox.pack_start Label.new item[:label]
           button = create(SpinButton, *item[:args],
@@ -91,6 +76,62 @@ class MainWindow < Gtk::Window
           button.set(on_value_changed: proc { item[:proc].call(button) })
           vbox.pack_start(button)
         end
+
+        theta = 10.fdiv(180) * Math::PI
+        [ { label: 'X Rotate',
+            on_left: proc {
+              @drawing_area.rotation_matrix *= Matrix.x_rotate_matrix(theta)
+              @drawing_area2.rotation_matrix *= Matrix.x_rotate_matrix(theta)
+            },
+            on_right: proc {
+              @drawing_area.rotation_matrix *= Matrix.x_rotate_matrix(-theta)
+              @drawing_area2.rotation_matrix *= Matrix.x_rotate_matrix(-theta)
+            }
+          },
+          { label: 'Y Rotate',
+            on_left: proc {
+              @drawing_area.rotation_matrix *= Matrix.y_rotate_matrix(theta)
+              @drawing_area2.rotation_matrix *= Matrix.y_rotate_matrix(theta)
+            },
+            on_right: proc {
+              @drawing_area.rotation_matrix *= Matrix.y_rotate_matrix(-theta)
+              @drawing_area2.rotation_matrix *= Matrix.y_rotate_matrix(-theta)
+            }
+          },
+          { label: 'Z Rotate',
+            on_left: proc {
+              @drawing_area.rotation_matrix *= Matrix.z_rotate_matrix(theta)
+              @drawing_area2.rotation_matrix *= Matrix.z_rotate_matrix(theta)
+            },
+            on_right: proc {
+              @drawing_area.rotation_matrix *= Matrix.z_rotate_matrix(-theta)
+              @drawing_area2.rotation_matrix *= Matrix.z_rotate_matrix(-theta)
+            }
+          },
+        ].each do |item|
+          vbox.pack_start(Label.new(item[:label]))
+          create(HBox) do |hbox|
+            hbox.pack_start(create(Button, '←', on_clicked: item[:on_left]))
+            hbox.pack_start(create(Button, '→', on_clicked: item[:on_right]))
+            vbox.pack_start(hbox)
+          end
+        end
+
+        axis_check_button = create(CheckButton, 'Show Axes',
+                                   active: @drawing_area.show_axes?)
+        axis_check_button.set(on_toggled: proc {
+                                @drawing_area.show_axes = !@drawing_area.show_axes?
+                                @drawing_area2.show_axes = !@drawing_area2.show_axes?
+                              })
+        vbox.pack_start(axis_check_button)
+        wire_check_button = create(CheckButton, 'Wireframe',
+                                   active: @drawing_area.wireframe?)
+        wire_check_button.set(on_toggled: proc {
+                                @drawing_area.wireframe = !@drawing_area.wireframe?
+                                @drawing_area2.wireframe = !@drawing_area2.wireframe?
+                              })
+
+        vbox.pack_start(wire_check_button)
         align.add vbox
       end
     end

@@ -2,19 +2,19 @@
 class Matrix
   class << self
     include Math
-    def x_rotate_matrix(theta)
+    def x_rotate(theta)
       Matrix[[1,          0,           0],
              [0, cos(theta), -sin(theta)],
              [0, sin(theta),  cos(theta)]]
     end
 
-    def y_rotate_matrix(theta)
+    def y_rotate(theta)
       Matrix[[cos(theta),  0, sin(theta)],
              [0,           1,          0],
              [-sin(theta), 0, cos(theta)]]
     end
 
-    def z_rotate_matrix(theta)
+    def z_rotate(theta)
       Matrix[[cos(theta), -sin(theta),  0],
              [sin(theta),  cos(theta),  0],
              [0,                    0,  1]]
@@ -26,15 +26,15 @@ class Vector
   include Math
 
   def x_rotate(theta)
-    Matrix.x_rotate_matrix(theta) * self
+    Matrix.x_rotate(theta) * self
   end
 
   def y_rotate(theta)
-    Matrix.y_rotate_matrix(theta) * self
+    Matrix.y_rotate(theta) * self
   end
 
   def z_rotate(theta)
-    Matrix.z_rotate_matrix(theta) * self
+    Matrix.z_rotate(theta) * self
   end
 
   def angle_acute?(other)

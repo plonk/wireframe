@@ -6,8 +6,7 @@ require_relative 'cube'
 require_relative 'gtk_helper'
 
 class MyDrawingArea < Gtk::DrawingArea
-  attr_reader :cube
-  attr_reader :rotation_matrix
+  attr_reader :rotation, :cube
 
   type_register
   stock_signal_new('changed')
@@ -22,20 +21,19 @@ class MyDrawingArea < Gtk::DrawingArea
 
     signal_connect('expose-event', &method(:on_expose))
 
-    @cube = Cube.new
-    @cube.signal_connect('changed') do
-      invalidate
-    end
+    @objects = []
 
-    @tetrahedron = Tetrahedron.new
-    @tetrahedron.signal_connect('changed') do
-      invalidate
+    @objects << (@cube = Cube.new) << Tetrahedron.new
+    @objects.each do |obj|
+      obj.signal_connect('changed') do
+        invalidate
+      end
     end
 
     @wireframe = true
     @show_axes = true
 
-    @rotation_matrix = Matrix[[1,0,0],[0,1,0],[0,0,1]]
+    @rotation = Matrix[[1,0,0],[0,1,0],[0,0,1]]
 
     signal_connect('changed') do
       invalidate
@@ -60,8 +58,8 @@ class MyDrawingArea < Gtk::DrawingArea
     signal_emit('changed')
   end
 
-  def rotation_matrix=(matrix)
-    @rotation_matrix = matrix
+  def rotation=(matrix)
+    @rotation = matrix
     signal_emit('changed')
   end
 
@@ -103,21 +101,10 @@ class MyDrawingArea < Gtk::DrawingArea
 
   VIEW_POINT = Vector[0, 0, -800]
 
-  def draw_tetrahedron(cr)
+  def draw_object(cr, obj)
     cr.save do
-      @tetrahedron.each_side do |side|
-        triangle = Triangle.new(*side.vertices.map { |v| perspective rotate v })
-        draw_surface(cr, triangle)
-      end
-    end
-  end
-
-  def draw_cube(cr)
-    cr.save do
-      @cube.each_side do |side|
-        quad = Quadrangle.new(*side.vertices.map { |v| perspective rotate v })
-
-        draw_surface(cr, quad)
+      obj.each_side do |side|
+        draw_surface(cr, side.fmap { |v| perspective rotate v })
       end
     end
   end
@@ -180,8 +167,9 @@ class MyDrawingArea < Gtk::DrawingArea
     cr.set_line_width(1)
 
     draw_axes(cr) if show_axes?
-    draw_cube(cr)
-    draw_tetrahedron(cr)
+    @objects.each do |obj|
+      draw_object(cr, obj)
+    end
 
     cr.destroy
   end
@@ -189,7 +177,7 @@ class MyDrawingArea < Gtk::DrawingArea
   include Math
 
   def rotate(vector)
-    @rotation_matrix * vector
+    @rotation * vector
   end
 
   def perspective(vector)

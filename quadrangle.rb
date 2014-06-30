@@ -1,19 +1,8 @@
 require 'matrix'
 
-class Quadrangle
-  attr_reader :vertices
-
+class Polygon
   def initialize(*vertices)
-    fail ArgumentError, vertices.inspect  unless vertices.size == 4
-    @v = vertices.map { |triples| make_vector(triples) }
-  end
-
-  def make_vector item
-    if item.is_a? Vector
-      item
-    else
-      Vector[*item]
-    end
+    @v = vertices.map(&method(:make_vector))
   end
 
   def vertices
@@ -32,48 +21,50 @@ class Quadrangle
   end
 
   def each_line
-    @v.cycle.each_cons(2).take(4).each do |st, ed|
+    @v.cycle.each_cons(2).take(vertices.size).each do |st, ed|
       yield(st, ed)
     end
     self
   end
-end
 
-class Triangle
-  attr_reader :vertices
-
-  def initialize(*vertices)
-    fail ArgumentError, vertices.inspect  unless vertices.size == 3
-    @v = vertices.map { |triples| make_vector(triples) }
+  def fmap(&block)
+    fail 'block missing' unless block
+    self.class.new(*vertices.map(&block))
   end
+
+  private
 
   def make_vector item
-    if item.is_a? Vector
-      item
-    else
-      Vector[*item]
+    item.is_a?(Vector) ? item : Vector[*item]
+  end
+
+  class << self
+    alias [] new
+
+    def has_vertices(number)
+      define_method :num_vertices do
+        number
+      end
     end
-  end
 
-  def vertices
-    @v
-  end
+    def with_vertices(number_vertices)
+      Class.new(Polygon) do
+        has_vertices number_vertices
 
-  def normal
-    (@v[1] - @v[0]).cross_product(@v[2] - @v[1]).normalize
-  end
-
-  def each_vertex
-    @v.each do |v|
-      yield(v)
+        def initialize(*vertices)
+          unless vertices.size == num_vertices
+            fail ArgumentError, "vertex number mismatch #{vertices.inspect}"
+          end
+          super(*vertices)
+        end
+      end
     end
-    self
-  end
-
-  def each_line
-    @v.cycle.each_cons(2).take(3).each do |st, ed|
-      yield(st, ed)
-    end
-    self
   end
 end
+
+Triangle = Polygon.with_vertices(3)
+Quadrangle = Polygon.with_vertices(4)
+
+# t = Triangle[[0,-1,0],[-1,0,0],[1,0,0]]
+# p t.normal # => Vector[0.0, 0.0, 1.0]
+# p t.fmap { |v| v * 100 }

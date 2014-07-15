@@ -2,6 +2,11 @@
 require 'gtk2'
 
 module GtkHelper
+  def self.included(base)
+    base.extend ClassMethods
+  end
+
+  # create( Button, "OK", on_clicked: proc {} ) etc.
   def create(klass, *args, &block)
     if args.last.is_a? Hash
       options = args.pop
@@ -15,6 +20,17 @@ module GtkHelper
     block.call(widget) if block
 
     widget
+  end
+
+  module ClassMethods
+    def stock_signal_new(name)
+      case name
+      when 'changed'
+        signal_new('changed', GLib::Signal::ACTION, nil, nil)
+      else
+        raise ArgumentError, "unknown stock signal #{name.inspect}"
+      end
+    end
   end
 end
 
@@ -51,16 +67,5 @@ class Gdk::Color
 
   def self.validate_floats values
     values.size == 3 and values.all? { |v| v.is_a? Numeric }
-  end
-end
-
-class GLib::Instantiatable
-  def self.stock_signal_new(name)
-    case name
-    when 'changed'
-      signal_new('changed', GLib::Signal::ACTION, nil, nil)
-    else
-      raise ArgumentError, "unknown stock signal #{name.inspect}"
-    end
   end
 end

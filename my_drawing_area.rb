@@ -6,6 +6,8 @@ require_relative 'cube'
 require_relative 'gtk_helper'
 
 class MyDrawingArea < Gtk::DrawingArea
+  include GtkHelper
+
   attr_reader :rotation, :cube
 
   type_register
@@ -23,7 +25,9 @@ class MyDrawingArea < Gtk::DrawingArea
 
     @objects = []
 
-    @objects << (@cube = Cube.new) << Tetrahedron.new
+    @cube = Cube.new
+    @objects << @cube
+    # @objects << Tetrahedron.new
     @objects.each do |obj|
       obj.signal_connect('changed') do
         invalidate

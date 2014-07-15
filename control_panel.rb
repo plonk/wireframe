@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 require 'gtk2'
 require 'matrix'
+require_relative 'slider'
 
 class ControlPanel < Gtk::Alignment
   include Gtk
@@ -9,7 +10,18 @@ class ControlPanel < Gtk::Alignment
   def initialize(drawing_area1, drawing_area2)
     super(0,0,0,0)
     @das = [drawing_area1, drawing_area2]
+    @slider = {}
     build
+
+    theta = 10.fdiv(180) * Math::PI
+    Gtk.timeout_add(17) do
+      [:x, :y, :z].each do |letter|
+        unless @slider[letter].value == 0
+          modify_rotation Matrix.send("#{letter}_rotate", theta * @slider[letter].value)
+        end
+      end
+      true
+    end
   end
 
   def primary
@@ -47,20 +59,10 @@ class ControlPanel < Gtk::Alignment
         vbox.pack_start(button)
       end
 
-      theta = 10.fdiv(180) * Math::PI
       %w(x y z).each do |letter|
         vbox.pack_start(Label.new("#{letter.upcase} Rotate"))
-        create(HBox) do |hbox|
-          hbox.pack_start(create(Button, '←',
-                                 on_clicked: proc do
-                                   modify_rotation(Matrix.send("#{letter}_rotate", +theta))
-                                 end))
-          hbox.pack_start(create(Button, '→',
-                                 on_clicked:  proc do
-                                   modify_rotation(Matrix.send("#{letter}_rotate", -theta))
-                                 end))
-          vbox.pack_start(hbox)
-        end
+        @slider[letter.to_sym] = slider = create(Slider)
+        vbox.pack_start(slider, false)
       end
 
       vbox.pack_start(create_check_button("Show Axes", :show_axes))

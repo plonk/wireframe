@@ -4,6 +4,8 @@ require 'matrix'
 require_relative 'gtk_helper'
 
 class Polyhedron < GLib::Object
+  include GtkHelper
+
   type_register
   stock_signal_new('changed')
 
